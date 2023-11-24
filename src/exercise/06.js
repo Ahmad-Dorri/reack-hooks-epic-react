@@ -2,16 +2,59 @@
 // http://localhost:3000/isolated/exercise/06.js
 
 import * as React from 'react'
-// 🐨 you'll want the following additional things from '../pokemon':
-// fetchPokemon: the function we call to get the pokemon info
-// PokemonInfoFallback: the thing we show while we're loading the pokemon info
-// PokemonDataView: the stuff we use to display the pokemon info
-import {PokemonForm} from '../pokemon'
+
+import {
+  PokemonForm,
+  fetchPokemon,
+  PokemonDataView,
+  PokemonInfoFallback,
+  PokemonErrorBoundary,
+} from '../pokemon'
+
+const reducerFunction = (state, action) => {
+  switch (action.type) {
+    case 'pending':
+      return {
+        status: 'pending',
+      }
+    case 'resolved':
+      return {
+        status: 'resolved',
+        data: action.payload,
+      }
+    case 'rejected':
+      return {
+        status: 'rejected',
+        data: action.payload,
+      }
+    default:
+      throw Error('invalid type')
+  }
+}
 
 function PokemonInfo({pokemonName}) {
-  // 🐨 Have state for the pokemon (null)
+  // const [pokemon, setPokemon] = React.useState(null)
+  // const [error, setError] = React.useState(null)
+  // const [status, setStatus] = React.useState('idle')
+  const [state, dispatch] = React.useReducer(reducerFunction, {
+    status: pokemonName ? 'pending' : 'idle',
+  })
+  // idle, pending, resolved, rejected
   // 🐨 use React.useEffect where the callback should be called whenever the
   // pokemon name changes.
+  React.useEffect(() => {
+    if (!pokemonName) return
+    dispatch({type: 'pending'})
+    fetchPokemon(pokemonName).then(
+      pokemon => {
+        dispatch({type: 'resolved', payload: pokemon})
+      },
+      error => {
+        dispatch({type: 'rejected', payload: error.message})
+      },
+    )
+  }, [pokemonName])
+
   // 💰 DON'T FORGET THE DEPENDENCIES ARRAY!
   // 💰 if the pokemonName is falsy (an empty string) then don't bother making the request (exit early).
   // 🐨 before calling `fetchPokemon`, clear the current pokemon state by setting it to null.
@@ -24,9 +67,19 @@ function PokemonInfo({pokemonName}) {
   //   1. no pokemonName: 'Submit a pokemon'
   //   2. pokemonName but no pokemon: <PokemonInfoFallback name={pokemonName} />
   //   3. pokemon: <PokemonDataView pokemon={pokemon} />
+  if (state.status === 'idle') {
+    return 'Submit a pokemon'
+  }
 
-  // 💣 remove this
-  return 'TODO'
+  if (state.status === 'pending') {
+    return <PokemonInfoFallback name={pokemonName} />
+  }
+
+  if (state.status === 'rejected') {
+    throw state.data
+  }
+  if (state.status === 'resolved')
+    return <PokemonDataView pokemon={state.data} />
 }
 
 function App() {
@@ -36,12 +89,18 @@ function App() {
     setPokemonName(newPokemonName)
   }
 
+  function handleReset() {
+    setPokemonName('')
+  }
+
   return (
     <div className="pokemon-info-app">
       <PokemonForm pokemonName={pokemonName} onSubmit={handleSubmit} />
       <hr />
       <div className="pokemon-info">
-        <PokemonInfo pokemonName={pokemonName} />
+        <PokemonErrorBoundary resetKeys={[pokemonName]} onReset={handleReset}>
+          <PokemonInfo pokemonName={pokemonName} />
+        </PokemonErrorBoundary>
       </div>
     </div>
   )
